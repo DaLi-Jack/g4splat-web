@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html>
+
+<head lang="en">
+    <meta charset="UTF-8">
+    <meta http-equiv="x-ua-compatible" content="ie=edge">
+
+    <title>G4Splat</title>
+
+    <meta name="description" content="G4Splat: Geometry-Guided Gaussian Splatting with Generative Prior">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.4.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.8.0/codemirror.min.css">
+    <link rel="stylesheet" href="css/app.css">
+    <link rel="stylesheet" href="css/fontawesome.all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.8.0/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/1.5.3/clipboard.min.js"></script>
+    <script type="text/javascript" async src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/MathJax.js?config=TeX-MML-AM_CHTML"></script>
+    <script defer src="js/fontawesome.all.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.5.0/Chart.min.js"></script>
+
+    <style>
+        /* Basic styles */
+        .nav-pills > li.active > a, .nav-pills > li.active > a:hover, .nav-pills > li.active > a:focus {
+            background-color: #337ab7;
+        }
+        .nav-pills > li > a {
+            color: #337ab7;
+        }
+        .pill-row {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .pill {
+            cursor: pointer;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            padding: 5px;
+            transition: border-color 0.3s;
+        }
+        .pill.active {
+            border-color: #337ab7;
+        }
+        .pill:hover {
+            border-color: #337ab7;
+        }
+        .thumbnail-img {
+            border-radius: 3px;
+        }
+        .video-container {
+            margin: 20px 0;
+        }
+    </style>
+
+    <!-- Move JavaScript function definitions to head to ensure priority loading -->
+    <script>
+        // Global variables
+        let activeMethodPill, activeScenePill, activeModePill;
+        let activeVidID = 0;
+        let select = true;
+
+        // Initialization function
+        function initializeElements() {
+            activeMethodPill = document.querySelector('.method-pill.active');
+            activeScenePill = document.querySelector('.scene-pill.active');
+            activeModePill = document.querySelector('.mode-pill.active');
+        }
+
+        // Any-View scene selection function
+        function selectAnyViewScene(scenePill) {
+            console.log('selectAnyViewScene called with:', scenePill);
+            // Update active state
+            document.querySelectorAll('.any-view-scene-pill').forEach(pill => pill.classList.remove('active'));
+            scenePill.classList.add('active');
+            
+            // Get scene value
+            const scene = scenePill.getAttribute('data-value');
+            
+            // Build video file path
+            const videoPath = `videos/any-view/${scene}_ours.mp4`;
+            
+            console.log('Loading any-view video:', videoPath);
+            
+            // Update video source
+            const anyViewVideo = document.getElementById('anyViewVideo');
+            if (anyViewVideo) {
+                anyViewVideo.src = videoPath;
+            } else {
+                console.error('anyViewVideo element not found');
+            }
+        }
+
+        // Comparison video selection function
+        function selectCompVideo(methodPill, scenePill, viewCount, modePill) {
+            console.log('selectCompVideo called with:', methodPill, scenePill, viewCount, modePill);
+            
+            // Update active state
+            if (methodPill) {
+                document.querySelectorAll('.method-pill').forEach(pill => pill.classList.remove('active'));
+                methodPill.classList.add('active');
+                activeMethodPill = methodPill;
+            }
+            
+            if (scenePill) {
+                document.querySelectorAll('.scene-pill').forEach(pill => pill.classList.remove('active'));
+                scenePill.classList.add('active');
+                activeScenePill = scenePill;
+            }
+            
+            if (modePill) {
+                document.querySelectorAll('.mode-pill').forEach(pill => pill.classList.remove('active'));
+                modePill.classList.add('active');
+                activeModePill = modePill;
+            }
+
+            // Get current selected values
+            const method = activeMethodPill ? activeMethodPill.getAttribute('data-value') : 'genfusion';
+            const scene = activeScenePill ? activeScenePill.getAttribute('data-value') : 'scene2';
+            const mode = activeModePill ? activeModePill.getAttribute('data-value') : 'rgb';
+
+            // Build video file path
+            const videoPath = `videos/comparison/${scene}_${method}_vs_ours_${mode}.mp4`;
+            
+            console.log('Loading comparison video:', videoPath);
+
+            // Update video source
+            const video0 = document.getElementById('compVideo0');
+            const video1 = document.getElementById('compVideo1');
+            
+            if (mode === 'rgb') {
+                if (video0) {
+                    video0.src = videoPath;
+                    video0.hidden = false;
+                    video1.hidden = true;
+                    activeVidID = 0;
+                }
+            } else {
+                if (video1) {
+                    video1.src = videoPath;
+                    video0.hidden = true;
+                    video1.hidden = false;
+                    activeVidID = 1;
+                }
+            }
+
+            // Update view count display
+            if (viewCount) {
+                const compVideoValue = document.getElementById('compVideoValue');
+                if (compVideoValue) {
+                    compVideoValue.textContent = viewCount;
+                }
+            }
+        }
+    </script>
+
+</head>
+
+<body style="padding: 1%; width: 100%">
+    <div class="container-lg text-center" style="max-width: 1500px; margin: auto;" id="main">
+        <div class="row">
+            <h2 class="col-md-12 text-center">
+                <b>G4Splat</b>: Geometry-Guided Gaussian Splatting with Generative Prior</br></br>
+            </h2>
+        </div>
+
+        <div class="row text-center">
+            <div class="col-md-1">
+            </div>
+            <div class="col-md-10 text-center">
+                <ul class="list-inline" style="font-size: 20px;">
+                    <li><a href="https://dali-jack.github.io/Junfeng-Ni/">Junfeng Ni </a><sup style="font-size: 10px;">1,2,*</sup></li>
+                    <li><a href="https://yixchen.github.io/">Yixin Chen </a><sup style="font-size: 10px;">2,✉</sup></li>
+                    <li><a href="https://github.com/isxiaohe/">Zhifei Yang </a><sup style="font-size: 10px;">3</sup></li>
+                    <li><a href="https://yuliu-ly.github.io/">Yu Liu </a><sup style="font-size: 10px;">1,2</sup></li>
+                    <li><a href="https://jason-aplp.github.io/Ruijie-Lu/">Ruijie Lu </a><sup style="font-size: 10px;">3</sup></li>
+                    <li><a href="https://zhusongchun.net/">Song-Chun Zhu </a><sup style="font-size: 10px;">1,2,3</sup></li>
+                    <li><a href="https://siyuanhuang.com/">Siyuan Huang </a><sup style="font-size: 10px;">2,✉</sup></li>
+                </ul>
+            </div>
+            <div class="col-md-3">
+            </div>
+            <div class="col-md-12 text-center">
+                <sup>*</sup> Work done as an intern at BIGAI &nbsp
+                <sup>✉</sup> Corresponding author  &nbsp <sup>1</sup>Tsinghua University
+
+            </div>
+            <div class="col-md-12 text-center">
+                <sup>2</sup>State Key Laboratory of General Artificial Intelligence, BIGAI &nbsp <sup>3</sup>Peking University
+
+            </div>
+            <div class="col-md-3">
+            </div>
+            <div class="col-md-12 text-center">
+                <b>arXiv 2025</b>
+            </div> 
+        </div>
+        <div class="row text-center">
+            <span class="link-block">
+                <a href=""
+                    class="external-link button is-normal is-rounded is-dark">
+                    <span class="icon">
+                        <i class="ai ai-arxiv"></i>
+                    </span>
+                    <span>arXiv</span>
+                </a>
+                <a href="https://github.com/DaLi-Jack/G4Splat"
+                    class="external-link button is-normal is-rounded is-dark">
+                    <span class="icon">
+                        <i class="fab fa-github"></i>
+                    </span>
+                    <span>Code (Coming Soon)</span>
+                </a>
+            </span>
+        </div>
+
+        <div class="row text-center">
+            <div class="col-md-8 col-md-offset-2">
+                <h3 style="line-height: 1.2;font-size: 18px;">
+                    TL;DR: <b>G4Splat</b> integrates <b>accurate geometry guidance with generative prior</b> to enhance 3D scene reconstruction, substantially improving both geometric fidelity and appearance quality in observed and unobserved regions.
+                <h3>
+                <img src="./images/teaser.png" alt="" style="width: 90%; height: auto;">
+			</div>
+        </div>
+        <br>
+
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+                <h3 style="font-size: 28px;"><b>Abstract</b><h3>
+                <p class="text-justify" style="line-height: 1.3;font-size: 17px;">
+                    Despite recent advances in leveraging generative prior from pre-trained diffusion models for 3D scene reconstruction, existing methods still face two critical limitations. 
+                    First, due to the lack of reliable geometric supervision, they struggle to produce high-quality reconstructions even in observed regions, let alone in unobserved areas. 
+                    Second, they lack effective mechanisms to mitigate multi-view inconsistencies in the generated images, leading to severe shape-appearance ambiguities and degraded scene geometry. 
+                    In this paper, we identify accurate geometry as the fundamental prerequisite for effectively exploiting generative models to enhance 3D scene reconstruction. 
+                    We first propose to leverage the prevalence of planar structures to derive accurate metric-scale depth maps, providing reliable supervision in both observed and unobserved regions. 
+                    Furthermore, we incorporate this geometry guidance throughout the generative pipeline to improve visibility mask estimation, guide novel view selection, and enhance multi-view consistency when inpainting with video diffusion models, resulting in accurate and consistent scene completion. 
+                    Extensive experiments on Replica, ScanNet++, and DeepBlending show that our method consistently outperforms existing baselines in both geometry and appearance reconstruction, particularly for unobserved regions. 
+                    Moreover, our method naturally supports single-view inputs and unposed videos, with strong generalizability in both indoor and outdoor scenarios with practical real-world applicability.
+                </p>
+            </div>
+        </div>
+        <br>
+
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+                <h3 style="font-size: 28px;"><b>Method</b><h3>
+                <p class="text-justify" style="line-height: 1.3;font-size: 17px;">
+                    For each training loop, we first extract global 3D planes from all training views and compute plane-aware depth maps. 
+                    Subsequently, we construct a visibility grid from these depth maps, select plane-aware novel views, inpaint their invisible regions, and incorporate the completed views back into the training set.
+                </p>
+                <img src="./images/method.png" alt="" style="width: 90%; height: auto;">
+            </div>
+        </div>
+        <br>
+
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+                <h3 style="font-size: 28px;"><b>Results</b><h3>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+                <h3 style="text-align: left;font-size: 22px;"><b>Comparison with Baselines (5-View Input)</b><h3>
+
+                <div class="text-center">
+                    <ul class="nav nav-pills center-pills">
+                        <li class="method-pill" data-value="matcha" onclick="selectCompVideo(this, activeScenePill)"><a>MAtCha</a></li>
+                        <li class="method-pill" data-value="genfusion" onclick="selectCompVideo(this, activeScenePill)"><a>GenFusion</a></li>
+                        <li class="method-pill" data-value="difix" onclick="selectCompVideo(this, activeScenePill)"><a>Difix3D+</a></li>
+                        <li class="method-pill" data-value="guidedvd" onclick="selectCompVideo(this, activeScenePill)"><a>GuidedVD</a></li>
+                        <li class="method-pill active" data-value="see3d" onclick="selectCompVideo(this, activeScenePill)"><a>See3D</a></li>
+                    </ul>
+                </div>
+                
+                <div class="text-center">
+                    <div class="video-container">
+                        <video class="video" style="height: 280px; max-width: 100%;" id="compVideo0" loop playsinline autoplay muted>
+                            <source src="videos/comparison/scene1_see3d_vs_ours_rgb.mp4" />
+                        </video>
+                        <video class="video" style="height: 280px; max-width: 100%;" id="compVideo1" loop playsinline autoplay muted hidden>
+                            <source src="videos/comparison/scene1_see3d_vs_ours_mesh.mp4" />
+                        </video>
+                    </div>
+                    <div class="text-center" style="color: black;" id="mode-pills">
+                        <div class="btn-group btn-group-sm">
+                            <span class="btn btn-primary mode-pill active" data-value="rgb" onclick="selectCompVideo(activeMethodPill, activeScenePill, null, this)">
+                                RGB
+                            </span>
+                            <span class="btn btn-primary mode-pill" data-value="mesh" onclick="selectCompVideo(activeMethodPill, activeScenePill, null, this)">
+                                Mesh
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="pill-row scene-pills" id="scene-pills">
+                        <span class="pill scene-pill active" data-value="scene1" onclick="selectCompVideo(activeMethodPill, this, 10)">
+                            <img class="thumbnail-img" src="thumbnails/comparison/scene1_thumbnail.png" alt="Scene 1" width="64">
+                        </span>
+                        <span class="pill scene-pill" data-value="scene2" onclick="selectCompVideo(activeMethodPill, this, 10)">
+                            <img class="thumbnail-img" src="thumbnails/comparison/scene2_thumbnail.png" alt="Scene 2" width="64">
+                        </span>
+                        <span class="pill scene-pill" data-value="scene3" onclick="selectCompVideo(activeMethodPill, this, 10)">
+                            <img class="thumbnail-img" src="thumbnails/comparison/scene3_thumbnail.png" alt="Scene 3" width="64">
+                        </span>
+                        <span class="pill scene-pill" data-value="scene4" onclick="selectCompVideo(activeMethodPill, this, 10)">
+                            <img class="thumbnail-img" src="thumbnails/comparison/scene4_thumbnail.png" alt="Scene 4" width="64">
+                        </span>
+                        <span class="pill scene-pill" data-value="scene5" onclick="selectCompVideo(activeMethodPill, this, 10)">
+                            <img class="thumbnail-img" src="thumbnails/comparison/scene5_thumbnail.png" alt="Scene 5" width="64">
+                        </span>
+                        <span class="pill scene-pill" data-value="scene6" onclick="selectCompVideo(activeMethodPill, this, 10)">
+                            <img class="thumbnail-img" src="thumbnails/comparison/scene6_thumbnail.png" alt="Scene 6" width="64">
+                        </span>
+                        <span class="pill scene-pill" data-value="scene7" onclick="selectCompVideo(activeMethodPill, this, 10)">
+                            <img class="thumbnail-img" src="thumbnails/comparison/scene7_thumbnail.png" alt="Scene 7" width="64">
+                        </span>
+                    </div>
+                    <br>
+
+                    <p class="text-justify" style="line-height: 1.3; text-align: left; font-size: 16px;">
+                        Baseline (left) vs. Ours (right). Our method delivers more accurate geometry with fewer Gaussian floaters across both observed and unobserved regions. 
+                        <b>Try exploring different methods, scenes, and modes (RGB/Mesh) to see the difference!</b>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Any-View Results Display Area -->
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+                <h3 style="text-align: left;font-size: 22px;"><b>Any-View Reconstruction</b><h3>
+
+                <div class="text-center">
+                    <div class="video-container">
+                        <video id="anyViewVideo" class="video" style="height: 280px; max-width: 100%;" loop playsinline autoplay muted controls>
+                            <source src="videos/any-view/scene1_ours.mp4" />
+                        </video>
+                    </div>
+
+                    <div class="pill-row any-view-scene-pills" id="any-view-scene-pills">
+                        <span class="pill any-view-scene-pill active" data-value="scene1" onclick="selectAnyViewScene(this)">
+                            <img class="thumbnail-img" src="thumbnails/any-view/scene1_thumbnail.png" alt="Scene 1" width="64">
+                            <div class="caption" style="font-size:10px; margin-top:4px;">1 input view</div>
+                        </span>
+                        <span class="pill any-view-scene-pill" data-value="scene2" onclick="selectAnyViewScene(this)">
+                            <img class="thumbnail-img" src="thumbnails/any-view/scene2_thumbnail.png" alt="Scene 2" width="64">
+                            <div class="caption" style="font-size:10px; margin-top:4px;">1 input view</div>
+                        </span>
+                        <span class="pill any-view-scene-pill" data-value="scene3" onclick="selectAnyViewScene(this)">
+                            <img class="thumbnail-img" src="thumbnails/any-view/scene3_thumbnail.png" alt="Scene 3" width="64">
+                            <div class="caption" style="font-size:10px; margin-top:4px;">1 input view</div>
+                        </span>
+                        <span class="pill any-view-scene-pill" data-value="scene4" onclick="selectAnyViewScene(this)">
+                            <img class="thumbnail-img" src="thumbnails/any-view/scene4_thumbnail.png" alt="Scene 4" width="64">
+                            <div class="caption" style="font-size:10px; margin-top:10px;">5 input views</div>
+                        </span>
+                        <span class="pill any-view-scene-pill" data-value="scene5" onclick="selectAnyViewScene(this)">
+                            <img class="thumbnail-img" src="thumbnails/any-view/scene5_thumbnail.png" alt="Scene 5" width="64">
+                            <div class="caption" style="font-size:10px; margin-top:8px;">5 input views</div>
+                        </span>
+                        <span class="pill any-view-scene-pill" data-value="scene6" onclick="selectAnyViewScene(this)">
+                            <img class="thumbnail-img" src="thumbnails/any-view/scene6_thumbnail.png" alt="Scene 6" width="64">
+                            <div class="caption" style="font-size:10px; margin-top:2px;">5 input views</div>
+                        </span>
+                        <span class="pill any-view-scene-pill" data-value="scene7" onclick="selectAnyViewScene(this)">
+                            <img class="thumbnail-img" src="thumbnails/any-view/scene7_thumbnail.png" alt="Scene 7" width="64">
+                            <div class="caption" style="font-size:10px; margin-top:2px;">10 input views</div>
+                        </span>
+                        <span class="pill any-view-scene-pill" data-value="scene8" onclick="selectAnyViewScene(this)">
+                            <img class="thumbnail-img" src="thumbnails/any-view/scene8_thumbnail.png" alt="Scene 8" width="64">
+                            <div class="caption" style="font-size:10px; margin-top:2px;">10 input views</div>
+                        </span>
+                    </div>
+                    <br>
+
+                    <p class="text-justify" style="line-height: 1.3; text-align: left; font-size: 16px;">
+                        Our method shows strong generalization across diverse scenarios, including indoor and outdoor environments, unposed scenes, and even single-view inputs. 
+                        <b>Try exploring different scenes!</b>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+            <h3 style="text-align: left;font-size: 22px;"><b>Dense-View Comparison with Baselines (383-View Input)</b><h3>
+                <video id="denseViewVideo" width="100%" autoplay loop muted controls>
+                    <source src="videos/dense-view/dense-view.mp4" type="video/mp4" />
+                </video>
+                <br><br>
+                <p class="text-justify" style="line-height: 1.3; text-align: left; font-size: 16px;">
+                    Our method significantly outperforms the baselines even with dense-view inputs, especially in regions with strong specularities and reflections.
+                </p>
+            </div>
+        </div>
+        <br>
+
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+                <h3 style="text-align: left;font-size: 22px;"><b>Citation</b><h3>
+                    <div class="form-group col-md-12">
+    <pre style="background-color: #f5f5f5; padding: 15px; border: 1px solid #ddd; border-radius: 4px; text-align: left; font-size: 12.5px;"><code>@article{ni2025g4splat,
+    title={G4Splat: Geometry-Guided Gaussian Splatting with Generative Prior},
+    author={Ni, Junfeng and Chen, Yixin and Yang, Zhifei and Liu, Yu and Lu, Ruijie and Zhu, Song-Chun and Huang, Siyuan},
+    journal={arXiv},
+    year={2025}
+}</code></pre>
+</div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-8 col-md-offset-2">
+                The website template was borrowed from <a href="http://mgharbi.com/">Michaël Gharbi</a> and <a href="https://dorverbin.github.io/refnerf">Ref-NeRF</a>.
+                </p>
+            </div>
+        </div>
+
+
+    </div>
+
+    <script>
+        // Initialize after page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded, initializing...');
+            initializeElements();
+            
+            // Set up comparison video event listeners
+            const video0 = document.getElementById("compVideo0");
+            const video1 = document.getElementById("compVideo1");
+            
+            if (video0) {
+                video0.addEventListener('loadedmetadata', function() {
+                    if (activeVidID == 0 && select){
+                        video0.play();
+                        console.log('Video 0 loaded successfully:', video0.videoWidth, video0.videoHeight);
+                        video0.hidden = false;
+                        video1.hidden = true;
+                    }
+                });
+            }
+            
+            if (video1) {
+                video1.addEventListener('loadedmetadata', function() {
+                    if (activeVidID == 1 && select){
+                        video1.play();
+                        console.log('Video 1 loaded successfully:', video1.videoWidth, video1.videoHeight);
+                        video0.hidden = true;
+                        video1.hidden = false;
+                    }
+                });
+            }
+
+            // Set up Any-View video event listeners
+            const anyViewVideo = document.getElementById('anyViewVideo');
+            
+            if (anyViewVideo) {
+                anyViewVideo.addEventListener('loadedmetadata', function() {
+                    console.log('Any-view video loaded successfully:', anyViewVideo.videoWidth, anyViewVideo.videoHeight);
+                });
+                
+                anyViewVideo.addEventListener('error', function(e) {
+                    console.error('Any-view video error:', e);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
